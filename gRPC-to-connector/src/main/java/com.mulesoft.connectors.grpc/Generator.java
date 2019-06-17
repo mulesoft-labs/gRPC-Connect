@@ -9,6 +9,8 @@ import static com.mulesoft.connectors.grpc.ExtensionClassName.SCHEDULER;
 import static com.mulesoft.connectors.grpc.ExtensionClassName.SCHEDULER_SERVICE;
 import static javax.lang.model.element.Modifier.PUBLIC;
 
+import com.mulesoft.connectors.grpc.extension.Descriptor;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,21 +38,26 @@ import com.squareup.javapoet.TypeSpec.Builder;
 
 public class Generator {
 
-    static Map<String, TypeSpec> types = new HashMap<>();
+    Map<String, TypeSpec> types = new HashMap<>();
+    private String baseJavaPackage;
+    private String apiPackage;
 
     public static void main(String [] args) throws IOException {
-        process(new File("/Users/ewasinger/Documents/mulesoft/experiments/gRPC-connect/target/generated-sources"), Thread.currentThread().getContextClassLoader().getResourceAsStream("descriptor.desc"));
+       new Generator().process(null, new File("/Users/ewasinger/Documents/mulesoft/experiments/gRPC-connect/target/generated-sources"), Thread.currentThread().getContextClassLoader().getResourceAsStream("descriptor.desc"));
     }
 
-    public static void process(File outputFolder, InputStream descriptorFile) throws IOException {
+    public void process(Descriptor descriptor, File outputFolder, InputStream descriptorFile) throws IOException {
         DescriptorProtos.FileDescriptorSet descriptorSet = DescriptorProtos.FileDescriptorSet.parseFrom(descriptorFile);
         FileDescriptorProto file = descriptorSet.getFile(0);
+
+        baseJavaPackage = file.getOptions().getJavaPackage();
+        apiPackage = baseJavaPackage + ".api";
 
         for (DescriptorProto descriptorProto : file.getMessageTypeList()) {
             createMethod(descriptorProto, outputFolder);
         }
 
-        ExtensionBuilder extensionBuilder = new ExtensionBuilder("SomeName", "Esteban Wasinger", Category.SELECT, "com.github.estebanwasinger");
+        ExtensionBuilder extensionBuilder = new ExtensionBuilder(descriptor.getName(), descriptor.getVendor(), Category.SELECT, baseJavaPackage);
 
         TypeSpec connection = createConnection("SomeConnection", file);
 
@@ -59,19 +66,18 @@ public class Generator {
 
         TypeSpec build = extensionBuilder.build();
 
-        extensionBuilder.withAdditionalClass(JavaType.create(connection, "com.github.estebanwasinger.internal"));
+        extensionBuilder.withAdditionalClass(JavaType.create(connection, baseJavaPackage + ".internal"));
 
         extensionBuilder.writeJavaFiles(outputFolder);
     }
 
-    private static TypeSpec createConnection(String className, FileDescriptorProto file) {
+    private TypeSpec createConnection(String className, FileDescriptorProto file) {
         Builder builder = TypeSpec.classBuilder(className);
         builder.addModifiers(PUBLIC);
-        String classPackage = "com.github.estebanwasinger";
         ServiceDescriptorProto service = file.getService(0);
         String name = service.getName();
-        ClassName futureStub = ClassName.get(classPackage, name + "Grpc." + name + "FutureStub");
-        ClassName grpc = ClassName.get(classPackage, name + "Grpc");
+        ClassName futureStub = ClassName.get(baseJavaPackage, name + "Grpc." + name + "FutureStub");
+        ClassName grpc = ClassName.get(baseJavaPackage, name + "Grpc");
 
         FieldSpec channel = FieldSpec.builder(MANAGED_CHANNEL, "channel", Modifier.PRIVATE, Modifier.FINAL).build();
         FieldSpec serviceFutureStub = FieldSpec.builder(futureStub, "serviceFutureStub", Modifier.PRIVATE, Modifier.FINAL).build();
@@ -109,13 +115,13 @@ public class Generator {
             methodBuilder.returns(void.class);
 
             String[] split = methodDescriptorProto.getInputType().split("\\.");
-            ClassName inputType = ClassName.get("com.github.estebanwasinger", types.get(split[split.length - 1]).name);
-            ClassName inputApiType = ClassName.get("com.github.estebanwasinger.api", types.get(split[split.length - 1]).name);
+            ClassName inputType = ClassName.get(baseJavaPackage, this.types.get(split[split.length - 1]).name);
+            ClassName inputApiType = ClassName.get(apiPackage, types.get(split[split.length - 1]).name);
 
 
             split = methodDescriptorProto.getOutputType().split("\\.");
-            ClassName outputType = ClassName.get("com.github.estebanwasinger", types.get(split[split.length - 1]).name);
-            ClassName outputApiType = ClassName.get("com.github.estebanwasinger.api", types.get(split[split.length - 1]).name);
+            ClassName outputType = ClassName.get(baseJavaPackage, types.get(split[split.length - 1]).name);
+            ClassName outputApiType = ClassName.get(apiPackage, types.get(split[split.length - 1]).name);
 
 
             methodBuilder.addParameter(inputType, "input");
@@ -138,7 +144,7 @@ public class Generator {
         return builder.build();
     }
 
-    private static void createOperationsContainer(ExtensionBuilder extensionBuilder, FileDescriptorProto descriptorProto) {
+    private void createOperationsContainer(ExtensionBuilder extensionBuilder, FileDescriptorProto descriptorProto) {
         OperationContainerBuilder operationContainerBuilder = extensionBuilder.withOperationContainer();
 
         for (ServiceDescriptorProto serviceDescriptorProto : descriptorProto.getServiceList()) {
@@ -149,10 +155,10 @@ public class Generator {
                 operationBuilder.returns(TypeName.VOID);
                 String[] split = methodDescriptorProto.getInputType().split("\\.");
                 String paramName = split[split.length - 1].toLowerCase();
-                operationBuilder.withParameter(paramName, ClassName.get("com.github.estebanwasinger.api", types.get(split[split.length - 1]).name));
+                operationBuilder.withParameter(paramName, ClassName.get(apiPackage, types.get(split[split.length - 1]).name));
 
                 split = methodDescriptorProto.getOutputType().split("\\.");
-                ClassName param1 = ClassName.get("com.github.estebanwasinger.api", types.get(split[split.length - 1]).name);
+                ClassName param1 = ClassName.get(apiPackage, types.get(split[split.length - 1]).name);
                 operationBuilder.withParameter("completionCallback", ExtensionClassName.COMPLETION_CALLBACK(param1, ClassName.get(Void.class)));
                 operationBuilder.withStatement(CodeBlock.of("connection.$L($L.to(),$L)",methodName(methodDescriptorProto), paramName, "completionCallback"));
             }
@@ -160,7 +166,7 @@ public class Generator {
 
         TypeSpec build = operationContainerBuilder.build();
 
-        JavaFile javaFile = JavaFile.builder("com.github.estebanwasinger.api", build)
+        JavaFile javaFile = JavaFile.builder(apiPackage, build)
                 .build();
 
         try {
@@ -175,7 +181,7 @@ public class Generator {
         return name.substring(0,1).toLowerCase() + name.substring(1);
     }
 
-    private static void createConnectionProvider(ExtensionBuilder extensionBuilder) {
+    private void createConnectionProvider(ExtensionBuilder extensionBuilder) {
         ClassName connectionType = ClassName.get(extensionBuilder.getPackage(), "SomeConnection");
         ConnectionProviderBuilder connectionProviderBuilder = extensionBuilder.withConnectionProvider("SomeName", connectionType);
 
@@ -189,7 +195,7 @@ public class Generator {
 
         TypeSpec build = connectionProviderBuilder.build();
 
-        JavaFile javaFile = JavaFile.builder("com.github.estebanwasinger.api", build)
+        JavaFile javaFile = JavaFile.builder(apiPackage, build)
                 .build();
 
         try {
@@ -200,7 +206,7 @@ public class Generator {
 
     }
 
-    private static void createMethod(DescriptorProto descriptorProto, File outputFolder) throws IOException {
+    private void createMethod(DescriptorProto descriptorProto, File outputFolder) throws IOException {
         Builder builder = TypeSpec.classBuilder(descriptorProto.getName())
                 .addModifiers(PUBLIC);
 
@@ -212,19 +218,16 @@ public class Generator {
 
         types.put(build.name, build);
 
-        JavaFile javaFile = JavaFile.builder("com.github.estebanwasinger.api", build)
+        JavaFile javaFile = JavaFile.builder(apiPackage, build)
                 .build();
 
         javaFile.writeTo(outputFolder);
 
     }
 
-    private static void addTransformers(DescriptorProto descriptorProto, Builder builder) {
-
-        String packageName = "com.github.estebanwasinger";
-        String packageNameApi = "com.github.estebanwasinger.api";
-        ClassName className = ClassName.get(packageName, descriptorProto.getName());
-        ClassName returnType = ClassName.get(packageNameApi, descriptorProto.getName());
+    private void addTransformers(DescriptorProto descriptorProto, Builder builder) {
+        ClassName className = ClassName.get(baseJavaPackage, descriptorProto.getName());
+        ClassName returnType = ClassName.get(apiPackage, descriptorProto.getName());
         addFrom(descriptorProto, builder, className, returnType);
         addTo(descriptorProto, builder, returnType, className);
 

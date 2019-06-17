@@ -20,12 +20,16 @@ import static org.apache.maven.plugins.annotations.LifecyclePhase.GENERATE_SOURC
 import static org.apache.maven.plugins.annotations.ResolutionScope.RUNTIME;
 
 import com.mulesoft.connectors.grpc.Generator;
+import com.mulesoft.connectors.grpc.extension.Descriptor;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 
+import com.google.gson.Gson;
+import org.apache.commons.io.IOUtils;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -59,11 +63,21 @@ public class GPRCConnectMojo extends AbstractMojo {
         if(packaging.toLowerCase().equals("pom")) {
             return;
         }
+        try {
+        File file = new File(projectDirectory, "src/main/mule/extension-descriptor.json");
+        Descriptor extensionDescriptor;
+        if(file.exists()) {
+            extensionDescriptor = new Gson().fromJson(new FileReader(file), Descriptor.class);
+        } else {
+            extensionDescriptor = new Descriptor();
+            extensionDescriptor.setVendor("MuleSoft");
+            extensionDescriptor.setName("SomeExtension");
+        }
 
         InputStream descriptorStream;
-        try {
+
             descriptorStream = new FileInputStream(new File(outputDirectory, "descriptor.desc"));
-            Generator.process(new File(targetFolder, "generated-sources/protobuf/java"), descriptorStream);
+            new Generator().process(extensionDescriptor, new File(targetFolder, "generated-sources/protobuf/java"), descriptorStream);
 
         } catch (IOException e) {
             throw new MojoExecutionException(e.getMessage());
