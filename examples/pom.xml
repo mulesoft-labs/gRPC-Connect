@@ -12,7 +12,8 @@
     <name>Examples of gRPC Based Connectors</name>
 
     <modules>
-        <module>hello-world</module>
+        <module>hello-world-connector</module>
+        <module>hello-world-server</module>
     </modules>
 
     
