@@ -1,6 +1,8 @@
 # gRPC Mule Connect
 Set of tools and plugins to create OOTB Mule 4 Connectors from Protobuf definitions and connect agains gRPC Servers
 
+![proto-to-mule](proto-to-mule.png)
+
 # How to use
 
 Clone repository and install it on your local M2 repo doing `mvn clean install` on the root of the project.
