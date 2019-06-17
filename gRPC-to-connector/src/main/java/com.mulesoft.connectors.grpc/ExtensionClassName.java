@@ -17,6 +17,7 @@ public interface ExtensionClassName {
     ClassName CONFIG_ANNOTATION = ClassName.get("org.mule.runtime.extension.api.annotation.param", "Config");
     ClassName SOURCES_ANNOTATION = ClassName.get("org.mule.runtime.extension.api.annotation", "Sources");
     ClassName DISPLAY_NAME_ANNOTATION = ClassName.get("org.mule.runtime.extension.api.annotation.param.display", "DisplayName");
+    ClassName CONTENT_ANNOTATION = ClassName.get("org.mule.runtime.extension.api.annotation.param", "Content");
     ClassName MEDIA_TYPE_ANNOTATION = ClassName.get("org.mule.runtime.extension.api.annotation.param", "MediaType");
     ClassName INJECT_ANNOTATION = ClassName.get("javax.inject", "Inject");
 

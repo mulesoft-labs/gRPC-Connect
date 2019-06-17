@@ -1,5 +1,6 @@
 package com.mulesoft.connectors.grpc;
 
+import static com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Label.LABEL_REPEATED;
 import static com.mulesoft.connectors.grpc.ExtensionClassName.INJECT_ANNOTATION;
 import static com.mulesoft.connectors.grpc.ExtensionClassName.LISTENABLE_FUTURE;
 import static com.mulesoft.connectors.grpc.ExtensionClassName.MANAGED_CHANNEL;
@@ -9,29 +10,35 @@ import static com.mulesoft.connectors.grpc.ExtensionClassName.SCHEDULER;
 import static com.mulesoft.connectors.grpc.ExtensionClassName.SCHEDULER_SERVICE;
 import static javax.lang.model.element.Modifier.PUBLIC;
 
+import com.mulesoft.connectors.grpc.ParameterBuilder.MethodParameterBuilder;
 import com.mulesoft.connectors.grpc.extension.Descriptor;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import javax.lang.model.element.Modifier;
 
 import com.google.protobuf.DescriptorProtos;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
+import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
 import com.google.protobuf.DescriptorProtos.MethodDescriptorProto;
 import com.google.protobuf.DescriptorProtos.ServiceDescriptorProto;
+import com.squareup.javapoet.AnnotationSpec;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterSpec;
+import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import com.squareup.javapoet.TypeSpec.Builder;
@@ -116,8 +123,6 @@ public class Generator {
 
             String[] split = methodDescriptorProto.getInputType().split("\\.");
             ClassName inputType = ClassName.get(baseJavaPackage, this.types.get(split[split.length - 1]).name);
-            ClassName inputApiType = ClassName.get(apiPackage, types.get(split[split.length - 1]).name);
-
 
             split = methodDescriptorProto.getOutputType().split("\\.");
             ClassName outputType = ClassName.get(baseJavaPackage, types.get(split[split.length - 1]).name);
@@ -153,12 +158,16 @@ public class Generator {
                 operationBuilder.withConnection("connection");
 
                 operationBuilder.returns(TypeName.VOID);
-                String[] split = methodDescriptorProto.getInputType().split("\\.");
-                String paramName = split[split.length - 1].toLowerCase();
-                operationBuilder.withParameter(paramName, ClassName.get(apiPackage, types.get(split[split.length - 1]).name));
+                String paramName = getTypeName(methodDescriptorProto.getInputType());
+                operationBuilder.
+                        withParameter(MethodParameterBuilder
+                                .builder(paramName, ClassName.get(apiPackage, types.get(paramName).name))
+                                .withAnnotation(AnnotationSpec.
+                                        builder(ExtensionClassName.CONTENT_ANNOTATION)
+                                        .build()));
 
-                split = methodDescriptorProto.getOutputType().split("\\.");
-                ClassName param1 = ClassName.get(apiPackage, types.get(split[split.length - 1]).name);
+                String outputTypeName = getTypeName(methodDescriptorProto.getOutputType());
+                ClassName param1 = ClassName.get(apiPackage, outputTypeName);
                 operationBuilder.withParameter("completionCallback", ExtensionClassName.COMPLETION_CALLBACK(param1, ClassName.get(Void.class)));
                 operationBuilder.withStatement(CodeBlock.of("connection.$L($L.to(),$L)",methodName(methodDescriptorProto), paramName, "completionCallback"));
             }
@@ -174,6 +183,11 @@ public class Generator {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    private String getTypeName(String inputType) {
+        String[] split233 = inputType.split("\\.");
+        return split233[split233.length - 1];
     }
 
     private static String methodName(MethodDescriptorProto methodDescriptorProto) {
@@ -240,7 +254,19 @@ public class Generator {
 
         methodBuilder.addStatement("$T.Builder builder = $T.newBuilder()", returnType, returnType);
         for (FieldDescriptorProto field : descriptorProto.getFieldList()) {
-            methodBuilder.addStatement("builder.$L(this.$L())", setterName(field.getName()), getterName(field.getName()));
+            if(field.getType().equals(Type.TYPE_MESSAGE)){
+                if(field.getLabel().equals(LABEL_REPEATED)) {
+                    methodBuilder.addStatement("builder.$L(this.$L().stream().map(p -> p.to()).collect($T.toList()))", getListSetterName(field.getName()), getterName(field.getName()), Collectors.class);
+                } else {
+                    methodBuilder.addStatement("builder.$L(this.$L().to())", setterName(field.getName()), getterName(field.getName()));
+                }
+            } else {
+                if(field.getLabel().equals(LABEL_REPEATED)) {
+                    methodBuilder.addStatement("builder.$L(this.$L())", getListSetterName(field.getName()), getterName(field.getName()));
+                } else {
+                    methodBuilder.addStatement("builder.$L(this.$L())", setterName(field.getName()), getterName(field.getName()));
+                }
+            }
         }
         methodBuilder.addStatement("return builder.build()");
 
@@ -248,7 +274,7 @@ public class Generator {
         builder.addMethod(methodBuilder.build());
     }
 
-    private static void addFrom(DescriptorProto descriptorProto, Builder builder, ClassName className, ClassName returnType) {
+    private void addFrom(DescriptorProto descriptorProto, Builder builder, ClassName className, ClassName returnType) {
         MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder("from")
                 .addModifiers(PUBLIC, Modifier.STATIC)
                 .addParameter(className, "param")
@@ -256,7 +282,20 @@ public class Generator {
 
         methodBuilder.addStatement("$T type = new $T()", returnType, returnType);
         for (FieldDescriptorProto field : descriptorProto.getFieldList()) {
-            methodBuilder.addStatement("type.$L(param.$L())", setterName(field.getName()), getterName(field.getName()));
+            if(field.getType().equals(Type.TYPE_MESSAGE)){
+                ClassName className1 = ClassName.get(apiPackage, getTypeName(field.getTypeName()));
+                if(field.getLabel().equals(LABEL_REPEATED)) {
+                    methodBuilder.addStatement("type.$L(param.$L.stream().map(p -> $T.from(p)).collect($T.toList()))", setterName(field.getName()), getterName(field.getName() + "List()"), className1, Collectors.class);
+                } else {
+                    methodBuilder.addStatement("type.$L($T.from(param.$L()))", setterName(field.getName()), className1, getterName(field.getName()));
+                }
+            } else {
+                if(field.getLabel().equals(LABEL_REPEATED)) {
+                    methodBuilder.addStatement("type.$L(param.$LList())", setterName(field.getName()), getterName(field.getName()));
+                } else {
+                    methodBuilder.addStatement("type.$L(param.$L())", setterName(field.getName()), getterName(field.getName()));
+                }
+            }
         }
         methodBuilder.addStatement("return type");
 
@@ -264,13 +303,13 @@ public class Generator {
         builder.addMethod(methodBuilder.build());
     }
 
-    private static void parseFields(DescriptorProto descriptorProto, Builder builder) {
+    private void parseFields(DescriptorProto descriptorProto, Builder builder) {
         for (FieldDescriptorProto fieldDescriptorProto : descriptorProto.getFieldList()) {
             parseField(builder, fieldDescriptorProto);
         }
     }
 
-    private static void parseField(Builder builder, FieldDescriptorProto fieldDescriptorProto) {
+    private void parseField(Builder builder, FieldDescriptorProto fieldDescriptorProto) {
         switch (fieldDescriptorProto.getType()) {
             case TYPE_STRING:
             {
@@ -279,18 +318,18 @@ public class Generator {
             }
             case TYPE_BOOL:
             {
-                createProperty(builder, fieldDescriptorProto, boolean.class);
+                createProperty(builder, fieldDescriptorProto, TypeName.BOOLEAN);
                 break;
             }
             case TYPE_INT32:
             case TYPE_INT64:
             {
-                createProperty(builder, fieldDescriptorProto, int.class);
+                createProperty(builder, fieldDescriptorProto, TypeName.INT);
                 break;
             }
             case TYPE_MESSAGE:
             {
-                System.out.println("TODO");
+                createProperty(builder, fieldDescriptorProto, ClassName.get(apiPackage, getTypeName(fieldDescriptorProto.getTypeName())));
                 break;
 //                    FieldSpec build = FieldSpec.builder(TypeName.)
             }
@@ -300,14 +339,19 @@ public class Generator {
     }
 
     private static void createProperty(Builder builder, FieldDescriptorProto fieldDescriptorProto, Class type) {
+        createProperty(builder, fieldDescriptorProto, ClassName.get(type));
+    }
+
+    private static void createProperty(Builder builder, FieldDescriptorProto fieldDescriptorProto, TypeName type) {
         String name = fieldDescriptorProto.getName();
-        FieldSpec build = FieldSpec.builder(type, name).build();
-        builder.addField(build);
 
         //TODO support for lists
-//        if(fieldDescriptorProto.getLabel().equals(LABEL_REPEATED)){
-//            type =
-//        }
+        if(fieldDescriptorProto.getLabel().equals(LABEL_REPEATED)){
+            type = ParameterizedTypeName.get(ClassName.get(List.class), type);
+        }
+
+        FieldSpec build = FieldSpec.builder(type, name).build();
+        builder.addField(build);
 
         builder.addMethod(MethodSpec
                 .methodBuilder(setterName(name))
@@ -331,4 +375,9 @@ public class Generator {
     private static String setterName(String name) {
         return "set" + name.substring(0, 1).toUpperCase() + name.substring(1);
     }
+
+    private static String getListSetterName(String name) {
+        return "addAll" + name.substring(0, 1).toUpperCase() + name.substring(1);
+    }
+
 }

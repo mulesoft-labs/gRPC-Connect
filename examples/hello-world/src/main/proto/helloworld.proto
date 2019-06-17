@@ -29,6 +29,14 @@ service CocherasService {
     rpc RegisterPerson (PersonCreation) returns (Person) {
     }
 
+    rpc getPerson (PersonGetRequest) returns (Person) {
+
+    }
+
+    rpc getPeople (PersonGetRequest) returns (People) {
+
+    }
+
     rpc AddReservation (ReservationCreation) returns (Reservation) {
 
     }
@@ -62,9 +70,19 @@ message PersonCreation {
     string lastname = 2;
 }
 
+message PersonGetRequest {
+    int32 id = 1;
+}
+
 message Person {
     string name = 1;
     string lastname = 2;
     int32 id = 3;
+}
+
+message People {
+    Person person = 1;
+    repeated Person people = 2;
+    repeated string randomValues = 3;
 }
 
