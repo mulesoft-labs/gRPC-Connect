@@ -40,6 +40,16 @@ public class MethodBuilder<T extends MethodBuilder> {
         return (T) this;
     }
 
+    public T withStatement(String format, Object... objects) {
+        builder.addStatement(format, objects);
+        return (T) this;
+    }
+
+    public T addCode(String format, Object... objects) {
+        builder.addCode(format, objects);
+        return (T) this;
+    }
+
     public MethodSpec build() {
         return builder.build();
     }

@@ -40,6 +40,30 @@ service CocherasService {
     rpc AddReservation (ReservationCreation) returns (Reservation) {
 
     }
+    //
+    //    rpc streamTest (stream StringWrapper) returns (stream StringWrapper) {
+    //
+    //    }
+
+    rpc streamTestTwo (CreationResult) returns (stream StringWrapper) {
+
+    }
+
+    rpc streamOnlyInput (stream StringWrapper) returns (CreationResult) {
+
+    }
+
+    rpc biStreaming (stream StringWrapper) returns (stream StringWrapper) {
+
+    }
+}
+
+message StringWrapper {
+    string stringValue = 1;
+}
+
+message CreationResult {
+    int32 createdResults = 1;
 }
 
 // The request message containing the user's name.

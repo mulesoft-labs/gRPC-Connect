@@ -17,14 +17,18 @@ package com.mulesoft.connectors.grpc.examples.server;/*
 import com.mulesoft.connectors.helloworld.Car;
 import com.mulesoft.connectors.helloworld.CarCreation;
 import com.mulesoft.connectors.helloworld.CocherasServiceGrpc;
+import com.mulesoft.connectors.helloworld.CreationResult;
 import com.mulesoft.connectors.helloworld.People;
 import com.mulesoft.connectors.helloworld.Person;
 import com.mulesoft.connectors.helloworld.PersonCreation;
 import com.mulesoft.connectors.helloworld.PersonGetRequest;
+import com.mulesoft.connectors.helloworld.StringWrapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
 import io.grpc.Server;
@@ -122,5 +126,86 @@ public class HelloWorldServer {
       responseObserver.onNext(people.get(id));
       responseObserver.onCompleted();
     }
+
+//    @Override
+    public StreamObserver<StringWrapper> streamTest(final StreamObserver<StringWrapper> responseObserver) {
+
+      return new StreamObserver<StringWrapper>() {
+        @Override
+        public void onNext(StringWrapper value) {
+          responseObserver.onNext(StringWrapper.newBuilder().setStringValue(value.getStringValue() + " pong").build());
+        }
+
+        @Override
+        public void onError(Throwable t) {
+
+        }
+
+        @Override
+        public void onCompleted() {
+          responseObserver.onCompleted();
+        }
+      };
+
+    }
+
+    @Override
+    public StreamObserver<StringWrapper> streamOnlyInput(final StreamObserver<CreationResult> responseObserver) {
+      final AtomicInteger count = new AtomicInteger(0);
+      return new StreamObserver<StringWrapper>() {
+        @Override
+        public void onNext(StringWrapper value) {
+          System.out.println("Receiving: " + value);
+          int i = count.incrementAndGet();
+          System.out.println(i);
+        }
+
+        @Override
+        public void onError(Throwable t) {
+
+        }
+
+        @Override
+        public void onCompleted() {
+          responseObserver.onNext(CreationResult.newBuilder().setCreatedResults(count.get()).build());
+          System.out.println("Closing");
+          responseObserver.onCompleted();
+        }
+      };
+    }
+
+    @Override
+    public StreamObserver<StringWrapper> biStreaming(final StreamObserver<StringWrapper> responseObserver) {
+      return new StreamObserver<StringWrapper>() {
+        @Override
+        public void onNext(StringWrapper value) {
+          responseObserver.onNext(value);
+        }
+
+        @Override
+        public void onError(Throwable t) {
+          responseObserver.onError(t);
+        }
+
+        @Override
+        public void onCompleted() {
+          responseObserver.onCompleted();
+        }
+      };
+    }
+
+    @Override
+    public void streamTestTwo(CreationResult request, StreamObserver<StringWrapper> responseObserver) {
+      for (int i = 0; i < request.getCreatedResults(); i++) {
+        StringWrapper build = StringWrapper.newBuilder().setStringValue("holas " + UUID.randomUUID().toString()).build();
+        System.out.println(i);
+        System.out.println("Sending: " + build);
+        responseObserver.onNext(build);
+      }
+      System.out.println("Closing");
+      responseObserver.onCompleted();
+    }
+
+
   }
 }

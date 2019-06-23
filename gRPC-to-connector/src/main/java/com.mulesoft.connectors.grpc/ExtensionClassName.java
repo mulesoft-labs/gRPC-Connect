@@ -43,6 +43,9 @@ public interface ExtensionClassName {
     ClassName ON_ERROR = ClassName.get("org.mule.runtime.extension.api.annotation.execution", "OnError");
     ClassName ON_TERMINATE = ClassName.get("org.mule.runtime.extension.api.annotation.execution", "OnTerminate");
 
+    ClassName STREAMING_HELPER = ClassName.get("org.mule.runtime.extension.api.runtime.streaming", "StreamingHelper");
+    ClassName CURSOR_ITERATOR_PROVIDER = ClassName.get("org.mule.runtime.api.streaming.object", "CursorIteratorProvider");
+
     ClassName SCHEDULER_SERVICE = ClassName.get("org.mule.runtime.api.scheduler", "SchedulerService");
     ClassName SCHEDULER = ClassName.get("org.mule.runtime.api.scheduler", "Scheduler");
 
