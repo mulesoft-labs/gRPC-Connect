@@ -308,7 +308,7 @@
             </plugin>
         </plugins>
     </build>
-
+    <!-- needed as per https://help.mulesoft.com/s/article/Could-not-find-artifact-org-mule-runtime-plugins-mule-extensions-maven-plugin-while-trying-to-create-an-XML-SDK-custom-module -->
     <pluginRepositories>
     <pluginRepository>
         <id>mulesoft-releases</id>
