@@ -308,6 +308,18 @@
             </plugin>
         </plugins>
     </build>
+    <!-- needed as per https://help.mulesoft.com/s/article/Could-not-find-artifact-org-mule-runtime-plugins-mule-extensions-maven-plugin-while-trying-to-create-an-XML-SDK-custom-module -->
+    <pluginRepositories>
+    <pluginRepository>
+        <id>mulesoft-releases</id>
+        <name>mulesoft release repository</name>
+        <layout>default</layout>
+        <url>https://repository.mulesoft.org/releases/</url>
+        <snapshots>
+            <enabled>false</enabled>
+        </snapshots>
+    </pluginRepository>
+    </pluginRepositories>
 
     
 </project>
