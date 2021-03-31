@@ -31,7 +31,7 @@
         <mule.extensions.maven.plugin.version>1.2.0</mule.extensions.maven.plugin.version>
         <mule.app.plugins.maven.plugin.version>1.2.0</mule.app.plugins.maven.plugin.version>
 
-        <guava.version>25.1-jre</guava.version>
+        <guava.version>29.0-jre</guava.version>
         <cglib.version>3.2.10</cglib.version>
 
         <project.build.sourceEncoding>ISO-8859-1</project.build.sourceEncoding>
